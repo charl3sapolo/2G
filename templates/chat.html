@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Educational SMS Chatbot - Web Chat</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f4f4f4;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        max-width: 400px;
+        margin: 40px auto;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px #ccc;
+        padding: 24px;
+      }
+      h2 {
+        text-align: center;
+        color: #2d6a4f;
+      }
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      input[type="text"],
+      textarea {
+        padding: 8px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+      }
+      button {
+        background: #2d6a4f;
+        color: #fff;
+        border: none;
+        padding: 10px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #40916c;
+      }
+      .chat-bubble {
+        margin: 10px 0;
+        padding: 10px;
+        border-radius: 8px;
+      }
+      .user {
+        background: #d8f3dc;
+        text-align: right;
+      }
+      .bot {
+        background: #b7e4c7;
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Educational SMS Chatbot</h2>
+      <form method="POST">
+        <label for="phone_number">Phone Number (for context):</label>
+        <input
+          type="text"
+          id="phone_number"
+          name="phone_number"
+          value="+1234567890"
+          required
+        />
+        <label for="message">Your Message:</label>
+        <textarea id="message" name="message" rows="3" required>
+{{ user_message or '' }}</textarea
+        >
+        <button type="submit">Send</button>
+      </form>
+      {% if user_message %}
+      <div class="chat-bubble user">
+        <strong>You:</strong> {{ user_message }}
+      </div>
+      {% endif %} {% if ai_response %}
+      <div class="chat-bubble bot"><strong>Bot:</strong> {{ ai_response }}</div>
+      {% endif %}
+    </div>
+  </body>
+</html>
