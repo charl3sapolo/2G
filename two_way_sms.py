@@ -1,11 +1,14 @@
 import africastalking
 from typing import List, Dict
 import asyncio
-from flask import Flask, request, jsonify
-import google.generativeai as genai
+from flask import Flask, request, jsonify, Response
+from google import genai
+from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 import logging
 import json
 from datetime import datetime
+import os
+import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,10 +27,14 @@ class EducationalChatbot:
         self.sms = africastalking.SMS
         
         # Initialize Gemini AI
-        genai.configure(api_key=gemini_api_key)
-        self.model = "gemini-2.5-flash-preview-05-20"
-        self.client = genai.GenerativeModel(self.model)
-        self.config = {"response_modalities": ["TEXT"]}
+        
+        self.model = "gemini-2.0-flash"
+        self.client = genai.Client(api_key=GEMINI_API_KEY)
+        self.google_search_tool = Tool(google_search=GoogleSearch())
+        self.config = GenerateContentConfig(
+            tools=[self.google_search_tool],
+            response_modalities=["TEXT"]
+        )
         
         # Store conversation history for context
         self.conversations = {}
@@ -76,12 +83,16 @@ class EducationalChatbot:
             
             # Generate response using the new Gemini API
             ai_response = ""
-            response = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self.client.generate_content(full_prompt)
-            )
-            if hasattr(response, 'text') and response.text:
-                ai_response = response.text
+            def generate():
+                return self.client.models.generate_content(
+                    model=self.model,
+                    contents=full_prompt,
+                    config=self.config
+                )
+            response = await asyncio.get_event_loop().run_in_executor(None, generate)
+            if hasattr(response, 'candidates') and response.candidates:
+                parts = response.candidates[0].content.parts
+                ai_response = " ".join([p.text for p in parts if hasattr(p, 'text')])
             
             # Truncate response if too long for SMS
             if len(ai_response) > 300:
@@ -181,6 +192,142 @@ def health_check():
     """Health check endpoint"""
     return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()}), 200
 
+@app.route('/ussd', methods=['POST'])
+def ussd_callback():
+    try:
+        form_data = request.form
+        session_id = form_data.get("sessionId", "")
+        phone_number = form_data.get("phoneNumber", "")
+        text = form_data.get("text", "")
+    except Exception:
+        return Response("END Error: Invalid request data", status=400, mimetype='text/plain')
+
+    text_array = text.split("*") if text else []
+    response = ""
+
+    # === MAIN MENU ===
+    if not text_array or text_array == [""]:
+        response = (
+            "CON Welcome to the AI x 2G Hackathon Demo\n"
+            "1. Buy SMS Bundle\n"
+            "2. Check Balance\n"
+            "3. Buy Airtime\n"
+            "4. Contact Support\n"
+            "5. Quiz & Win\n"
+            "6. Exit"
+        )
+
+    # === OPTION 1: Buy SMS Bundle ===
+    elif text_array[0] == "1":
+        bundles = [
+            {"desc": "10 SMS - TSH 1000", "amount": 1000},
+            {"desc": "25 SMS - TSH 1000", "amount": 1000},
+            {"desc": "50 SMS - TSH 1000", "amount": 1000}
+        ]
+        if len(text_array) == 1:
+            response = (
+                "CON Select SMS Bundle:\n"
+                + "\n".join([f"{i+1}. {bundles[i]['desc']}" for i in range(len(bundles))])
+            )
+        elif len(text_array) == 2:
+            bundle_index = text_array[1]
+            if bundle_index.isdigit() and 1 <= int(bundle_index) <= len(bundles):
+                response = "CON Enter phone number to pay with:"
+            else:
+                response = "END Invalid bundle selection."
+        elif len(text_array) == 3:
+            bundle_index = int(text_array[1]) - 1
+            pay_number = text_array[2]
+            selected = bundles[bundle_index]
+            # Ensure minimum amount is 1000
+            amount_to_send = max(selected["amount"], 1000)
+            # Call external API to create order
+            try:
+                payload = {
+                    "buyer_email": "mazikuben2@gmail.com",  # You can make this dynamic if needed
+                    "buyer_name": "Benjamin",              # You can make this dynamic if needed
+                    "buyer_phone": pay_number,
+                    "amount": amount_to_send,
+                    "admin_id": "string"
+                }
+                api_resp = requests.post(
+                    "https://zenopay-integration-fastapi-bucket.onrender.com/create_order",
+                    json=payload,
+                    headers={"accept": "application/json", "Content-Type": "application/json"},
+                    timeout=10
+                )
+                if api_resp.status_code == 200 and api_resp.json().get("status") == "success":
+                    response = f"END You selected {selected['desc']}. Payment request sent to {pay_number}."
+                else:
+                    response = "END Failed to initiate payment. Please try again later."
+            except Exception as e:
+                response = "END Error contacting payment service. Please try again later."
+        else:
+            response = "END Invalid input."
+
+    # === OPTION 2: Check Balance ===
+    elif text_array[0] == "2":
+        response = "END Your balance is TSH 1,000."
+
+    # === OPTION 3: Buy Airtime ===
+    elif text_array[0] == "3":
+        if len(text_array) == 1:
+            response = "CON Enter amount to buy:"
+        elif len(text_array) == 2 and text_array[1].isdigit():
+            amount = text_array[1]
+            response = f"END You have bought airtime worth TSH {amount}."
+        else:
+            response = "END Invalid amount."
+
+    # === OPTION 4: Contact Support ===
+    elif text_array[0] == "4":
+        if len(text_array) == 1:
+            response = (
+                "CON Support Menu:\n"
+                "1. Call Support\n"
+                "2. SMS Support\n"
+                "3. Back"
+            )
+        elif len(text_array) == 2:
+            opt = text_array[1]
+            if opt == "1":
+                response = "END Our support team will call you shortly."
+            elif opt == "2":
+                response = "END We’ve sent you a support SMS."
+            elif opt == "3":
+                response = (
+                    "CON Welcome to the AI x 2G Hackathon Demo\n"
+                    "1. Buy SMS Bundle\n"
+                    "2. Check Balance\n"
+                    "3. Buy Airtime\n"
+                    "4. Contact Support\n"
+                    "5. Quiz & Win\n"
+                    "6. Exit"
+                )
+            else:
+                response = "END Invalid option."
+
+    # === OPTION 5: Quiz (Gamification) ===
+    elif text_array[0] == "5":
+        question = "What is the capital of Tanzania?\n1. Nairobi\n2. Dodoma\n3. Kampala"
+        if len(text_array) == 1:
+            response = f"CON {question}"
+        elif len(text_array) == 2:
+            answer = text_array[1]
+            if answer == "2":
+                response = "END Correct! You’ve won 10 SMS credits. They’ll be added shortly."
+            else:
+                response = "END Incorrect! The correct answer was Dodoma. Try again later."
+
+    # === OPTION 6: Exit ===
+    elif text_array[0] == "6":
+        response = "END Thank you for using our service."
+
+    else:
+        response = "END Invalid option. Please try again."
+
+    return Response(response, status=200, mimetype='text/plain')
+
 # Example usage and testing functions
 async def test_send_message():
     """Test function to send a message"""
@@ -201,7 +348,7 @@ if __name__ == "__main__":
     # Replace these with your actual API keys
     USERNAME = "sandbox"
     AFRICASTALKING_API_KEY = "atsk_74691cad275149ae5c6fe3e45ac7e24420a4f5bf73ea92b391e94857aaaba69d8c3366cc"
-    GEMINI_API_KEY = "AIzaSyCMvb2QcODkdvG4382iKUHrZtRZ59zzyRU"
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     
     # Initialize chatbot
     initialize_chatbot(USERNAME, AFRICASTALKING_API_KEY, GEMINI_API_KEY)

@@ -1,4 +1,4 @@
 africastalking
 Flask
-google-generativeai
+google-genai
 logging
