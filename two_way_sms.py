@@ -200,6 +200,19 @@ def health_check():
     """Health check endpoint"""
     return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()}), 200
 
+# Load user preferences
+USER_PREFERENCES_FILE = "user_preferences.json"
+try:
+    with open(USER_PREFERENCES_FILE, "r") as f:
+        user_preferences = json.load(f)
+except FileNotFoundError:
+    user_preferences = {}
+
+# Save user preferences
+def save_user_preferences():
+    with open(USER_PREFERENCES_FILE, "w") as f:
+        json.dump(user_preferences, f)
+
 @app.route('/ussd', methods=['POST'])
 def ussd_callback():
     try:
@@ -213,15 +226,27 @@ def ussd_callback():
     text_array = text.split("*") if text else []
     response = ""
 
+    # Get user preferred language
+    preferred_language = user_preferences.get(phone_number, "swahili")
+
     # === MAIN MENU ===
     if not text_array or text_array == [""]:
-        response = (
-            "CON Welcome to EduPlatform\n"
-            "1. Register\n"
-            "2. About Us\n"
-            "3. Buy SMS Bundle\n"
-            "4. Change Language"
-        )
+        if preferred_language == "english":
+            response = (
+                "CON Welcome to EduPlatform\n"
+                "1. Register\n"
+                "2. About Us\n"
+                "3. Buy SMS Bundle\n"
+                "4. Change Language"
+            )
+        else:
+            response = (
+                "CON Karibu kwenye EduPlatform\n"
+                "1. Jisajili\n"
+                "2. Kuhusu Sisi\n"
+                "3. Nunua SMS Bundle\n"
+                "4. Badilisha Lugha"
+            )
 
     # === OPTION 1: Register ===
     elif text_array[0] == "1":
@@ -304,15 +329,19 @@ def ussd_callback():
     # === OPTION 4: Change Language ===
     elif text_array[0] == "4":
         response = (
-            "CON Select Language:\n"
+            "CON Chagua Lugha:\n"  # Kiswahili as primary language
             "1. English\n"
-            "2. Swahili"
+            "2. Kiswahili"
         )
         if len(text_array) == 2:
             if text_array[1] == "1":
-                response = "END Language changed to English."
+                user_preferences[phone_number] = "english"
+                save_user_preferences()
+                response = "END Language changed to English. Please run USSD again."
             elif text_array[1] == "2":
-                response = "END Language changed to Swahili."
+                user_preferences[phone_number] = "swahili"
+                save_user_preferences()
+                response = "END Language changed to Swahili. Please run USSD again."
             else:
                 response = "END Invalid selection."
 

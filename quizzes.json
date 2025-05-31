@@ -1,0 +1,29 @@
+{
+  "tanzanian_studies": [
+    {
+      "question": "What is the capital city of Tanzania?",
+      "options": ["Dodoma", "Dar es Salaam", "Arusha"],
+      "answer": 1
+    },
+    {
+      "question": "Which year did Tanzania gain independence?",
+      "options": ["1961", "1964", "1971"],
+      "answer": 1
+    },
+    {
+      "question": "What is the largest national park in Tanzania?",
+      "options": ["Serengeti", "Ruaha", "Mikumi"],
+      "answer": 2
+    },
+    {
+      "question": "Who was the first president of Tanzania?",
+      "options": ["Julius Nyerere", "Ali Hassan Mwinyi", "Jakaya Kikwete"],
+      "answer": 1
+    },
+    {
+      "question": "What is the official language of Tanzania?",
+      "options": ["English", "Kiswahili", "Arabic"],
+      "answer": 2
+    }
+  ]
+}
