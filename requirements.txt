@@ -2,3 +2,4 @@ africastalking
 Flask
 google-genai
 logging
+python-dotenv

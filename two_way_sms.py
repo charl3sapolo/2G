@@ -1,7 +1,7 @@
 import africastalking
 from typing import List, Dict
 import asyncio
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, render_template
 from google import genai
 from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
 import logging
@@ -9,12 +9,17 @@ import json
 from datetime import datetime
 import os
 import requests
+from dotenv import load_dotenv
+from flask_cors import CORS
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SENDER_NAME = "7833"
+SENDER_NAME = "62772"
 
 class EducationalChatbot:
     def __init__(self, username: str, api_key: str, gemini_api_key: str):
@@ -136,6 +141,9 @@ class EducationalChatbot:
 # Flask app for handling webhooks
 app = Flask(__name__)
 
+# Enable CORS for all origins
+CORS(app)
+
 # Initialize your chatbot (you'll need to provide your actual API keys)
 chatbot = None
 
@@ -208,21 +216,49 @@ def ussd_callback():
     # === MAIN MENU ===
     if not text_array or text_array == [""]:
         response = (
-            "CON Welcome to the AI x 2G Hackathon Demo\n"
-            "1. Buy SMS Bundle\n"
-            "2. Check Balance\n"
-            "3. Buy Airtime\n"
-            "4. Contact Support\n"
-            "5. Quiz & Win\n"
-            "6. Exit"
+            "CON Welcome to EduPlatform\n"
+            "1. Register\n"
+            "2. About Us\n"
+            "3. Buy SMS Bundle\n"
+            "4. Change Language"
         )
 
-    # === OPTION 1: Buy SMS Bundle ===
+    # === OPTION 1: Register ===
     elif text_array[0] == "1":
+        if len(text_array) == 1:
+            response = (
+                "CON By registering, you agree to receive free daily prompts and updates.\n"
+                "1. Agree\n"
+                "0. Decline"
+            )
+        elif len(text_array) == 2:
+            if text_array[1] == "1":
+                try:
+                    # Send welcome SMS
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(chatbot.send_message(
+                        "Welcome to our service! You will receive 20 free prompts daily. For extra prompts, you can purchase bundles.",
+                        [phone_number]
+                    ))
+                    response = "END Registration successful! Welcome to our service."
+                except Exception as e:
+                    response = "END Failed to send welcome message. Please try again later."
+            elif text_array[1] == "0":
+                response = "END Registration declined. Thank you for visiting."
+            else:
+                response = "END Invalid input. Please try again."
+
+    # === OPTION 2: About Us ===
+    elif text_array[0] == "2":
+        response = "END We are an AI-powered educational SMS chatbot service."
+
+    # === OPTION 3: Buy SMS Bundle ===
+    elif text_array[0] == "3":
         bundles = [
-            {"desc": "10 SMS - TSH 1000", "amount": 1000},
-            {"desc": "25 SMS - TSH 1000", "amount": 1000},
-            {"desc": "50 SMS - TSH 1000", "amount": 1000}
+            {"desc": "100 SMS - TSH 1000", "amount": 1000},
+            {"desc": "250 SMS - TSH 1000", "amount": 2000},
+            {"desc": "500 SMS - TSH 1000", "amount": 3000}
         ]
         if len(text_array) == 1:
             response = (
@@ -265,68 +301,56 @@ def ussd_callback():
         else:
             response = "END Invalid input."
 
-    # === OPTION 2: Check Balance ===
-    elif text_array[0] == "2":
-        response = "END Your balance is TSH 1,000."
-
-    # === OPTION 3: Buy Airtime ===
-    elif text_array[0] == "3":
-        if len(text_array) == 1:
-            response = "CON Enter amount to buy:"
-        elif len(text_array) == 2 and text_array[1].isdigit():
-            amount = text_array[1]
-            response = f"END You have bought airtime worth TSH {amount}."
-        else:
-            response = "END Invalid amount."
-
-    # === OPTION 4: Contact Support ===
+    # === OPTION 4: Change Language ===
     elif text_array[0] == "4":
-        if len(text_array) == 1:
-            response = (
-                "CON Support Menu:\n"
-                "1. Call Support\n"
-                "2. SMS Support\n"
-                "3. Back"
-            )
-        elif len(text_array) == 2:
-            opt = text_array[1]
-            if opt == "1":
-                response = "END Our support team will call you shortly."
-            elif opt == "2":
-                response = "END We’ve sent you a support SMS."
-            elif opt == "3":
-                response = (
-                    "CON Welcome to the AI x 2G Hackathon Demo\n"
-                    "1. Buy SMS Bundle\n"
-                    "2. Check Balance\n"
-                    "3. Buy Airtime\n"
-                    "4. Contact Support\n"
-                    "5. Quiz & Win\n"
-                    "6. Exit"
-                )
+        response = (
+            "CON Select Language:\n"
+            "1. English\n"
+            "2. Swahili"
+        )
+        if len(text_array) == 2:
+            if text_array[1] == "1":
+                response = "END Language changed to English."
+            elif text_array[1] == "2":
+                response = "END Language changed to Swahili."
             else:
-                response = "END Invalid option."
-
-    # === OPTION 5: Quiz (Gamification) ===
-    elif text_array[0] == "5":
-        question = "What is the capital of Tanzania?\n1. Nairobi\n2. Dodoma\n3. Kampala"
-        if len(text_array) == 1:
-            response = f"CON {question}"
-        elif len(text_array) == 2:
-            answer = text_array[1]
-            if answer == "2":
-                response = "END Correct! You’ve won 10 SMS credits. They’ll be added shortly."
-            else:
-                response = "END Incorrect! The correct answer was Dodoma. Try again later."
-
-    # === OPTION 6: Exit ===
-    elif text_array[0] == "6":
-        response = "END Thank you for using our service."
+                response = "END Invalid selection."
 
     else:
         response = "END Invalid option. Please try again."
 
     return Response(response, status=200, mimetype='text/plain')
+
+@app.route('/ai-response', methods=['POST'])
+def ai_response():
+    """Handle incoming messages and respond with AI-generated answers"""
+    try:
+        # Parse the incoming data
+        data = request.json
+        message = data.get('message')
+
+        if not message:
+            return jsonify({"error": "Missing required fields"}), 400
+
+        if chatbot is None:
+            return jsonify({"error": "Chatbot not initialized"}), 500
+
+        # Always create a new event loop in this thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        ai_response = loop.run_until_complete(chatbot.get_gemini_response(message, "dummy-phone-number"))
+        loop.close()
+
+        return jsonify({"response": ai_response}), 200
+
+    except Exception as e:
+        logger.error(f"Error in AI response route: {str(e)}")
+        return jsonify({"error": "Internal server error"}), 500
+    
+@app.route('/ai-response-ui', methods=['GET'])
+def ai_response_ui():
+    """Serve the AI Response HTML interface"""
+    return render_template('ai_response.html')
 
 # Example usage and testing functions
 async def test_send_message():
@@ -347,7 +371,7 @@ if __name__ == "__main__":
     # Initialize the chatbot with your API keys
     # Replace these with your actual API keys
     USERNAME = "sandbox"
-    AFRICASTALKING_API_KEY = "atsk_74691cad275149ae5c6fe3e45ac7e24420a4f5bf73ea92b391e94857aaaba69d8c3366cc"
+    AFRICASTALKING_API_KEY = "atsk_f9f27885033819de8d41f2156aa9194bda77fb029f447ece46be32a72532a6652cd2b855"
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     
     # Initialize chatbot

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Response</title>
+</head>
+
+<body>
+    <h1>AI Response Chatbot</h1>
+    <form id="ai-response-form">
+        <label for="message">Message:</label>
+        <textarea id="message" name="message" required></textarea>
+        <br>
+        <button type="button" onclick="sendMessage()">Send</button>
+    </form>
+    <div id="response"></div>
+
+    <script>
+        async function sendMessage() {
+            const message = document.getElementById('message').value;
+
+            const responseDiv = document.getElementById('response');
+            responseDiv.innerHTML = 'Sending...';
+
+            try {
+                const response = await fetch('/ai-response', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    responseDiv.innerHTML = `<p>Response: ${data.response}</p>`;
+                } else {
+                    responseDiv.innerHTML = `<p>Error: ${data.error}</p>`;
+                }
+            } catch (error) {
+                responseDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+
+</html>
